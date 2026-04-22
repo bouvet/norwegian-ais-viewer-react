@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Vessel } from '../types';
 import { getVesselCategory, NAV_STATUS } from '../utils/vesselTypes';
 import { getMidCountry } from '../data/midLookup';
+import type { NavTarget } from '../App';
 
 const LIGHT_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const LIGHT_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
@@ -13,10 +14,11 @@ const DARK_ATTR = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &cop
 
 const TRACK_API = (mmsi: string) => `http://localhost:8000/api/vessels/${mmsi}/track`;
 
-function createVesselIcon(color: string, course: number): L.DivIcon {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16" width="10" height="16"><polygon points="5,0 10,16 5,11 0,16" fill="${color}" stroke="rgba(0,0,0,0.45)" stroke-width="0.8" stroke-linejoin="round"/></svg>`;
+// highlighted=true adds a white glow class for the pulse animation
+function createVesselIcon(color: string, course: number, highlighted = false): L.DivIcon {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16" width="10" height="16"><polygon points="5,0 10,16 5,11 0,16" fill="${color}" stroke="${highlighted ? 'white' : 'rgba(0,0,0,0.45)'}" stroke-width="${highlighted ? '1.5' : '0.8'}" stroke-linejoin="round"/></svg>`;
   return L.divIcon({
-    html: `<div style="transform:rotate(${course}deg);transform-origin:5px 8px;width:10px;height:16px;line-height:0">${svg}</div>`,
+    html: `<div class="${highlighted ? 'vessel-pulse' : ''}" style="transform:rotate(${course}deg);transform-origin:5px 8px;width:10px;height:16px;line-height:0">${svg}</div>`,
     className: '',
     iconSize: [10, 16],
     iconAnchor: [5, 8],
@@ -89,6 +91,55 @@ function TrackLayer({ track, onClear }: TrackLayerProps) {
       pathOptions={{ color: track.color, opacity: 0.72, weight: 2 }}
     />
   );
+}
+
+// ─── NavigationController ───────────────────────────────────────
+
+interface NavigationControllerProps {
+  navTarget: NavTarget | null;
+  markerRefs: React.RefObject<Map<string, L.Marker>>;
+}
+
+function NavigationController({ navTarget, markerRefs }: NavigationControllerProps) {
+  const map = useMap();
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!navTarget) return;
+    const { vessel } = navTarget;
+    const marker = markerRefs.current.get(vessel.mmsi);
+
+    // Pan + zoom to the vessel
+    map.flyTo([vessel.lat, vessel.lon], 10, { animate: true, duration: 0.8 });
+
+    // Open popup slightly after fly-to duration (0.8 s animation + 100 ms buffer)
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(() => {
+      marker?.openPopup();
+      openTimer.current = null;
+    }, 900);
+
+    // Highlight: switch to glowing icon, revert after 2 s (matches 4× 0.5 s pulse cycles)
+    if (marker) {
+      const { color } = getVesselCategory(vessel.shipType);
+      const course = vessel.course ?? 0;
+      marker.setIcon(createVesselIcon(color, course, true));
+
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => {
+        marker.setIcon(createVesselIcon(color, course, false));
+        highlightTimer.current = null;
+      }, 2000);
+    }
+
+    return () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    };
+  }, [navTarget, map, markerRefs]);
+
+  return null;
 }
 
 // ─── VesselPopup ────────────────────────────────────────────────
@@ -191,6 +242,7 @@ interface VesselLayerProps {
   activeTrackMmsi: string | null;
   onShowTrack: (mmsi: string, color: string, positions: [number, number][]) => void;
   onClearTrack: () => void;
+  setMarkerRef: (mmsi: string, marker: L.Marker | null) => void;
 }
 
 function VesselLayer({
@@ -199,6 +251,7 @@ function VesselLayer({
   activeTrackMmsi,
   onShowTrack,
   onClearTrack,
+  setMarkerRef,
 }: VesselLayerProps) {
   const visible = useMemo(
     () => vessels.filter(v => enabledCategories.has(getVesselCategory(v.shipType).name)),
@@ -211,7 +264,15 @@ function VesselLayer({
         const { color } = getVesselCategory(vessel.shipType);
         const icon = createVesselIcon(color, vessel.course ?? 0);
         return (
-          <Marker key={vessel.mmsi} position={[vessel.lat, vessel.lon]} icon={icon}>
+          <Marker
+            key={vessel.mmsi}
+            position={[vessel.lat, vessel.lon]}
+            icon={icon}
+            eventHandlers={{
+              add(e) { setMarkerRef(vessel.mmsi, e.target as L.Marker); },
+              remove() { setMarkerRef(vessel.mmsi, null); },
+            }}
+          >
             <Popup>
               <VesselPopup
                 vessel={vessel}
@@ -234,10 +295,12 @@ interface VesselMapProps {
   vessels: Vessel[];
   enabledCategories: Set<string>;
   darkMode: boolean;
+  navTarget: NavTarget | null;
 }
 
-export default function VesselMap({ vessels, enabledCategories, darkMode }: VesselMapProps) {
+export default function VesselMap({ vessels, enabledCategories, darkMode, navTarget }: VesselMapProps) {
   const [activeTrack, setActiveTrack] = useState<ActiveTrack | null>(null);
+  const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const handleShowTrack = useCallback(
     (mmsi: string, color: string, positions: [number, number][]) => {
@@ -247,6 +310,11 @@ export default function VesselMap({ vessels, enabledCategories, darkMode }: Vess
   );
 
   const handleClearTrack = useCallback(() => setActiveTrack(null), []);
+
+  const setMarkerRef = useCallback((mmsi: string, marker: L.Marker | null) => {
+    if (marker) markerRefs.current.set(mmsi, marker);
+    else markerRefs.current.delete(mmsi);
+  }, []);
 
   return (
     <MapContainer
@@ -260,12 +328,14 @@ export default function VesselMap({ vessels, enabledCategories, darkMode }: Vess
         attribution={darkMode ? DARK_ATTR : LIGHT_ATTR}
       />
       <TrackLayer track={activeTrack} onClear={handleClearTrack} />
+      <NavigationController navTarget={navTarget} markerRefs={markerRefs} />
       <VesselLayer
         vessels={vessels}
         enabledCategories={enabledCategories}
         activeTrackMmsi={activeTrack?.mmsi ?? null}
         onShowTrack={handleShowTrack}
         onClearTrack={handleClearTrack}
+        setMarkerRef={setMarkerRef}
       />
     </MapContainer>
   );

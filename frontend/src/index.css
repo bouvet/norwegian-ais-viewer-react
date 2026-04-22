@@ -284,6 +284,7 @@ html, body, #root {
 .leaflet-popup-content-wrapper {
   border-radius: 8px !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.18) !important;
+  background: rgba(255, 255, 255, 0.75) !important;
 }
 
 .leaflet-popup-content {
@@ -348,4 +349,131 @@ html, body, #root {
 
 .track-msg--error {
   color: #dc2626;
+}
+
+/* ─── Vessel search ─────────────────────────────────────────── */
+.search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 9px;
+  width: 14px;
+  height: 14px;
+  color: #505470;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.search-input {
+  width: 100%;
+  background: #181828;
+  border: 1px solid #2a2a45;
+  border-radius: 6px;
+  color: #dde1f0;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 7px 30px 7px 30px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.search-input::placeholder {
+  color: #404060;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+}
+
+.search-clear {
+  position: absolute;
+  right: 7px;
+  background: none;
+  border: none;
+  color: #505470;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.search-clear:hover {
+  color: #a0a8c8;
+}
+
+.search-dropdown {
+  background: #131323;
+  border: 1px solid #2a2a45;
+  border-radius: 7px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  list-style: none;
+  overflow: hidden;
+  z-index: 9999;
+  padding: 4px 0;
+}
+
+.search-empty {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #505470;
+  font-style: italic;
+}
+
+.search-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.search-result:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.search-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.search-name {
+  flex: 1;
+  font-size: 13px;
+  color: #dde1f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-cat {
+  font-size: 11px;
+  color: #505470;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Vessel pulse (search highlight) ──────────────────────── */
+@keyframes vessel-pulse {
+  0%   { filter: drop-shadow(0 0 3px rgba(255,255,255,0.9)); }
+  50%  { filter: drop-shadow(0 0 8px rgba(255,255,255,0.4)); }
+  100% { filter: drop-shadow(0 0 3px rgba(255,255,255,0.9)); }
+}
+
+.vessel-pulse {
+  animation: vessel-pulse 0.5s ease-in-out 4;
 }

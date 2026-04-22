@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import type { Vessel } from '../types';
 import { VESSEL_CATEGORIES, getVesselCategory } from '../utils/vesselTypes';
+import VesselSearch from './VesselSearch';
 
 interface SidebarProps {
   vessels: Vessel[];
   enabledCategories: Set<string>;
   onToggleCategory: (name: string) => void;
+  onSelectVessel: (vessel: Vessel) => void;
   darkMode: boolean;
   onToggleDark: () => void;
   lastUpdated: Date | null;
@@ -22,6 +24,7 @@ export default function Sidebar({
   vessels,
   enabledCategories,
   onToggleCategory,
+  onSelectVessel,
   darkMode,
   onToggleDark,
   lastUpdated,
@@ -91,6 +94,14 @@ export default function Sidebar({
       <div className="section count-section">
         <div className="count-label">Visible vessels</div>
         <div className="count-number">{visibleCount.toLocaleString()}</div>
+      </div>
+
+      <div className="section">
+        <VesselSearch
+          vessels={vessels}
+          enabledCategories={enabledCategories}
+          onSelectVessel={onSelectVessel}
+        />
       </div>
 
       <div className="section freshness">
