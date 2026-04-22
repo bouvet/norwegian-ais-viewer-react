@@ -36,6 +36,22 @@ Track data is provided by the
 
 ---
 
+## Additional Feature - Vessel Search
+
+A search field at the bottom of the sidebar allows you to quickly find 
+any vessel by name. Results appear instantly as you type, showing the 
+vessel name and type in a dropdown list. Only vessels that are currently 
+toggled on in the legend are included in the search results.
+
+![Vessel Search](screenshots/03-Norwegian_AIS_Viewer.jpg)
+
+Clicking a result pans and zooms the map to that vessel, opens its popup 
+automatically, and briefly highlights the marker so it is easy to spot. 
+Press **Escape** or click outside the field to dismiss the dropdown, and 
+use the **×** button to clear the search.
+
+---
+
 ## Architecture
 
 ```
