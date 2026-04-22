@@ -143,3 +143,18 @@ A few things to be aware of:
 - **Small fishing vessels and leisure craft** under the AIS carriage threshold (< 15 m in Norwegian coastal waters) do not transmit AIS and are not shown.
 - **Satellite AIS** is not included — only terrestrial AIS from shore stations. Coverage degrades in the northern Barents Sea and open ocean beyond coastal station range.
 - Vessel positions are live snapshots; the timestamp in the popup shows when the individual vessel last transmitted.
+
+---
+
+## Security
+
+- **CORS**: the FastAPI backend only accepts requests from `localhost` — 
+  no external origins are allowed during development
+- **Credentials**: `BW_CLIENT_ID` and `BW_CLIENT_SECRET` are loaded 
+  exclusively from the `.env` file and are never exposed in API responses, 
+  logs, or error messages
+- **Startup check**: the backend fails immediately on startup if credentials 
+  are missing, rather than crashing on the first API call
+- **Frontend**: no credentials or sensitive values are present anywhere 
+  in the React code or build output — the frontend only knows the 
+  backend URL

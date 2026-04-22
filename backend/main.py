@@ -1,6 +1,7 @@
 """FastAPI backend for Norwegian AIS Viewer."""
 
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -44,7 +45,19 @@ async def _get_token() -> str:
     return await _fetch_token()
 
 
-app = FastAPI(title="Norwegian AIS Viewer API")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    _required = ("BW_CLIENT_ID", "BW_CLIENT_SECRET")
+    _missing = [v for v in _required if not os.getenv(v)]
+    if _missing:
+        raise RuntimeError(
+            f"Missing required environment variable(s): {', '.join(_missing)}. "
+            "Copy backend/.env.example to backend/.env and fill in your BarentsWatch credentials."
+        )
+    yield
+
+
+app = FastAPI(title="Norwegian AIS Viewer API", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
