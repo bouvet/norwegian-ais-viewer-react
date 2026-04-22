@@ -293,3 +293,59 @@ html, body, #root {
 .leaflet-container {
   font-family: inherit;
 }
+
+/* ─── Track button (inside Leaflet popup) ───────────────────── */
+.popup-track {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 28px;
+}
+
+.track-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.12s;
+}
+
+.track-btn--show {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.track-btn--show:hover {
+  background: #1e40af;
+}
+
+.track-btn--clear {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.track-btn--clear:hover {
+  background: #e5e7eb;
+}
+
+.track-loading {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.track-msg {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.track-msg--error {
+  color: #dc2626;
+}

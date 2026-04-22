@@ -1,5 +1,6 @@
 """FastAPI backend for Norwegian AIS Viewer."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -9,10 +10,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 _TOKEN_URL = "https://id.barentswatch.no/connect/token"
 _VESSELS_URL = "https://live.ais.barentswatch.no/v1/latest/combined"
+_TRACK_URL = "https://historic.ais.barentswatch.no/v1/historic/trackslast24hours/{mmsi}"
 
 _token: str | None = None
 _token_expiry: datetime | None = None
@@ -98,6 +102,7 @@ async def get_vessels() -> list[dict]:
             ) from exc
 
     result: list[dict] = []
+
     for v in resp.json():
         mmsi = str(v.get("mmsi") or "")
         lat = v.get("latitude")
@@ -121,3 +126,65 @@ async def get_vessels() -> list[dict]:
             }
         )
     return result
+
+
+_EMPTY_FC: dict = {"type": "FeatureCollection", "features": []}
+
+
+@app.get("/api/vessels/{mmsi}/track")
+async def get_vessel_track(mmsi: str) -> dict:
+    global _token, _token_expiry
+
+    token = await _get_token()
+    url = _TRACK_URL.format(mmsi=mmsi)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+        if resp.status_code == 401:
+            _token = None
+            _token_expiry = None
+            token = await _fetch_token()
+            resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+        if resp.status_code == 404:
+            logger.info("[track] MMSI=%s → 404 (no data)", mmsi)
+            return _EMPTY_FC
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "[track] MMSI=%s → HTTP %d: %s", mmsi, exc.response.status_code, exc.response.text[:500]
+            )
+            raise HTTPException(
+                status_code=exc.response.status_code, detail=str(exc)
+            ) from exc
+
+    logger.info("[track] MMSI=%s → %d, body preview: %s", mmsi, resp.status_code, resp.text[:500])
+
+    data = resp.json()
+
+    # BarentsWatch historic API may return either a GeoJSON FeatureCollection
+    # or a plain JSON array of position objects.  Handle both.
+    if isinstance(data, list):
+        coords = [
+            [p["longitude"], p["latitude"]]
+            for p in data
+            if p.get("longitude") is not None and p.get("latitude") is not None
+        ]
+        if not coords:
+            return _EMPTY_FC
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": coords},
+                    "properties": {},
+                }
+            ],
+        }
+
+    if isinstance(data, dict) and "features" in data:
+        return data
+
+    logger.warning("[track] MMSI=%s → unexpected response type: %s", mmsi, type(data).__name__)
+    return _EMPTY_FC

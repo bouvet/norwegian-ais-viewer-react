@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useState, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Vessel } from '../types';
@@ -10,6 +10,8 @@ const LIGHT_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}
 const LIGHT_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const DARK_URL = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
 const DARK_ATTR = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+const TRACK_API = (mmsi: string) => `http://localhost:8000/api/vessels/${mmsi}/track`;
 
 function createVesselIcon(color: string, course: number): L.DivIcon {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16" width="10" height="16"><polygon points="5,0 10,16 5,11 0,16" fill="${color}" stroke="rgba(0,0,0,0.45)" stroke-width="0.8" stroke-linejoin="round"/></svg>`;
@@ -33,20 +35,118 @@ function formatMsgTime(msgtime: string | null): string {
   }
 }
 
-function VesselPopup({ vessel }: { vessel: Vessel }) {
+// ─── GeoJSON helpers ────────────────────────────────────────────
+
+interface ActiveTrack {
+  mmsi: string;
+  positions: [number, number][];
+  color: string;
+}
+
+function extractPositions(data: unknown): [number, number][] {
+  if (!data || typeof data !== 'object') return [];
+  const fc = data as { features?: unknown[] };
+  if (!Array.isArray(fc.features)) return [];
+
+  const out: [number, number][] = [];
+  for (const f of fc.features) {
+    const feature = f as { geometry?: { type?: string; coordinates?: unknown } };
+    const geom = feature?.geometry;
+    if (!geom) continue;
+
+    if (geom.type === 'LineString') {
+      const coords = geom.coordinates as number[][];
+      for (const c of coords) {
+        if (c.length >= 2) out.push([c[1], c[0]]);
+      }
+    } else if (geom.type === 'MultiLineString') {
+      const lines = geom.coordinates as number[][][];
+      for (const line of lines) {
+        for (const c of line) {
+          if (c.length >= 2) out.push([c[1], c[0]]);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ─── TrackLayer ─────────────────────────────────────────────────
+
+interface TrackLayerProps {
+  track: ActiveTrack | null;
+  onClear: () => void;
+}
+
+function TrackLayer({ track, onClear }: TrackLayerProps) {
+  useMapEvents({ popupclose: onClear });
+
+  if (!track || track.positions.length === 0) return null;
+
+  return (
+    <Polyline
+      positions={track.positions}
+      pathOptions={{ color: track.color, opacity: 0.72, weight: 2 }}
+    />
+  );
+}
+
+// ─── VesselPopup ────────────────────────────────────────────────
+
+type TrackState = 'idle' | 'loading' | 'empty' | 'error';
+
+interface VesselPopupProps {
+  vessel: Vessel;
+  color: string;
+  activeTrackMmsi: string | null;
+  onShowTrack: (mmsi: string, color: string, positions: [number, number][]) => void;
+  onClearTrack: () => void;
+}
+
+function VesselPopup({ vessel, color, activeTrackMmsi, onShowTrack, onClearTrack }: VesselPopupProps) {
+  const [trackState, setTrackState] = useState<TrackState>('idle');
+
+  const isTrackActive = activeTrackMmsi === vessel.mmsi;
+
   const { name: catName } = getVesselCategory(vessel.shipType);
   const flag = getMidCountry(vessel.mmsi);
   const status =
     vessel.navStatus != null
       ? (NAV_STATUS[vessel.navStatus] ?? `Code ${vessel.navStatus}`)
       : '—';
-  const speed =
-    vessel.speed != null ? `${vessel.speed.toFixed(1)} kn` : '—';
-  const course =
-    vessel.course != null ? `${Math.round(vessel.course)}°` : '—';
+  const speed = vessel.speed != null ? `${vessel.speed.toFixed(1)} kn` : '—';
+  const course = vessel.course != null ? `${Math.round(vessel.course)}°` : '—';
+
+  function handleShowTrack(e: React.MouseEvent) {
+    e.stopPropagation();
+    setTrackState('loading');
+    fetch(TRACK_API(vessel.mmsi))
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        const positions = extractPositions(data);
+        if (positions.length === 0) {
+          setTrackState('empty');
+        } else {
+          onShowTrack(vessel.mmsi, color, positions);
+          setTrackState('idle');
+        }
+      })
+      .catch(() => setTrackState('error'));
+  }
+
+  function handleClearTrack(e: React.MouseEvent) {
+    e.stopPropagation();
+    onClearTrack();
+    setTrackState('idle');
+  }
 
   return (
-    <div className="vessel-popup">
+    // stopPropagation on the container prevents any click inside the popup
+    // from bubbling to the Leaflet map and triggering closePopupOnClick.
+    <div className="vessel-popup" onClick={e => e.stopPropagation()}>
       <div className="popup-name">{vessel.name || 'Unknown vessel'}</div>
       <dl className="popup-fields">
         <dt>MMSI</dt><dd>{vessel.mmsi}</dd>
@@ -57,16 +157,49 @@ function VesselPopup({ vessel }: { vessel: Vessel }) {
         <dt>Course</dt><dd>{course}</dd>
         <dt>Updated</dt><dd>{formatMsgTime(vessel.msgtime)}</dd>
       </dl>
+
+      <div className="popup-track">
+        {isTrackActive ? (
+          <button className="track-btn track-btn--clear" onClick={handleClearTrack}>
+            ✕ Clear track
+          </button>
+        ) : trackState === 'loading' ? (
+          <span className="track-loading">Loading track…</span>
+        ) : (
+          <>
+            <button className="track-btn track-btn--show" onClick={handleShowTrack}>
+              ↗ Show track
+            </button>
+            {trackState === 'empty' && (
+              <span className="track-msg">No track data available</span>
+            )}
+            {trackState === 'error' && (
+              <span className="track-msg track-msg--error">Failed to load track</span>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
+// ─── VesselLayer ────────────────────────────────────────────────
+
 interface VesselLayerProps {
   vessels: Vessel[];
   enabledCategories: Set<string>;
+  activeTrackMmsi: string | null;
+  onShowTrack: (mmsi: string, color: string, positions: [number, number][]) => void;
+  onClearTrack: () => void;
 }
 
-function VesselLayer({ vessels, enabledCategories }: VesselLayerProps) {
+function VesselLayer({
+  vessels,
+  enabledCategories,
+  activeTrackMmsi,
+  onShowTrack,
+  onClearTrack,
+}: VesselLayerProps) {
   const visible = useMemo(
     () => vessels.filter(v => enabledCategories.has(getVesselCategory(v.shipType).name)),
     [vessels, enabledCategories],
@@ -80,7 +213,13 @@ function VesselLayer({ vessels, enabledCategories }: VesselLayerProps) {
         return (
           <Marker key={vessel.mmsi} position={[vessel.lat, vessel.lon]} icon={icon}>
             <Popup>
-              <VesselPopup vessel={vessel} />
+              <VesselPopup
+                vessel={vessel}
+                color={color}
+                activeTrackMmsi={activeTrackMmsi}
+                onShowTrack={onShowTrack}
+                onClearTrack={onClearTrack}
+              />
             </Popup>
           </Marker>
         );
@@ -89,6 +228,8 @@ function VesselLayer({ vessels, enabledCategories }: VesselLayerProps) {
   );
 }
 
+// ─── VesselMap ──────────────────────────────────────────────────
+
 interface VesselMapProps {
   vessels: Vessel[];
   enabledCategories: Set<string>;
@@ -96,6 +237,17 @@ interface VesselMapProps {
 }
 
 export default function VesselMap({ vessels, enabledCategories, darkMode }: VesselMapProps) {
+  const [activeTrack, setActiveTrack] = useState<ActiveTrack | null>(null);
+
+  const handleShowTrack = useCallback(
+    (mmsi: string, color: string, positions: [number, number][]) => {
+      setActiveTrack({ mmsi, color, positions });
+    },
+    [],
+  );
+
+  const handleClearTrack = useCallback(() => setActiveTrack(null), []);
+
   return (
     <MapContainer
       center={[65, 14]}
@@ -107,7 +259,14 @@ export default function VesselMap({ vessels, enabledCategories, darkMode }: Vess
         url={darkMode ? DARK_URL : LIGHT_URL}
         attribution={darkMode ? DARK_ATTR : LIGHT_ATTR}
       />
-      <VesselLayer vessels={vessels} enabledCategories={enabledCategories} />
+      <TrackLayer track={activeTrack} onClear={handleClearTrack} />
+      <VesselLayer
+        vessels={vessels}
+        enabledCategories={enabledCategories}
+        activeTrackMmsi={activeTrack?.mmsi ?? null}
+        onShowTrack={handleShowTrack}
+        onClearTrack={handleClearTrack}
+      />
     </MapContainer>
   );
 }
