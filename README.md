@@ -17,6 +17,25 @@ A live vessel traffic viewer for Norwegian waters built with FastAPI and React. 
 
 ---
 
+## Additional Feature - Vessel Track
+
+Clicking on any vessel marker opens a popup with vessel details. The popup 
+includes a **Show track** button that fetches and displays the vessel's 
+track for the last 24 hours as a coloured polyline on the map.
+
+![Vessel Track](screenshots/02-Norwegian_AIS_Viewer.jpg)
+
+The track is drawn in the same colour as the vessel type. Only one track 
+is shown at a time — selecting a new vessel automatically clears the 
+previous track. The **Clear track** button removes the track without 
+closing the popup. The map zoom and position are preserved when a track 
+is drawn.
+
+Track data is provided by the 
+[BarentsWatch Historic AIS API](https://developer.barentswatch.no/docs/AIS/historic-ais-api/).
+
+---
+
 ## Architecture
 
 ```
