@@ -55,25 +55,38 @@ use the **×** button to clear the search.
 ## Architecture
 
 ```
-norwegian-ais-viewer-react/      ← monorepo root
-├── backend/                     ← FastAPI (Python)
-│   ├── main.py                  ← API server + BarentsWatch client
-│   ├── requirements.txt
-│   └── .env.example
-└── frontend/                    ← React + Vite (TypeScript)
-    ├── src/
-    │   ├── App.tsx
-    │   ├── components/
-    │   │   ├── VesselMap.tsx    ← react-leaflet map + markers
-    │   │   └── Sidebar.tsx      ← legend, filters, controls
-    │   ├── hooks/
-    │   │   └── useVessels.ts    ← data fetching
-    │   ├── utils/
-    │   │   └── vesselTypes.ts   ← AIS type → category + colour
-    │   └── data/
-    │       └── midLookup.ts     ← MMSI MID → flag state
-    ├── package.json
-    └── vite.config.ts
+norwegian-ais-viewer-react/          ← monorepo root
+├── .gitignore                       ← excludes .env, node_modules, build output
+├── README.md
+├── screenshots/                     ← app screenshots used in this README
+│   ├── 01-Norwegian_AIS_Viewer.jpg
+│   ├── 02-Norwegian_AIS_Viewer.jpg
+│   └── 03-Norwegian_AIS_Viewer.jpg
+├── backend/                         ← FastAPI (Python)
+│   ├── main.py                      ← API server, BarentsWatch OAuth2 client, token cache
+│   ├── requirements.txt             ← Python dependencies (fastapi, uvicorn, httpx, python-dotenv)
+│   └── .env.example                 ← credential template (copy to .env and fill in)
+└── frontend/                        ← React + Vite (TypeScript)
+    ├── index.html                   ← Vite HTML entry point
+    ├── package.json                 ← npm dependencies and dev scripts
+    ├── package-lock.json
+    ├── tsconfig.json                ← TypeScript compiler configuration
+    ├── vite.config.ts               ← Vite build configuration
+    └── src/
+        ├── main.tsx                 ← React entry point, mounts App into #root
+        ├── App.tsx                  ← Root component, global state, layout
+        ├── index.css                ← All application styles
+        ├── types.ts                 ← Vessel interface shared across the app
+        ├── components/
+        │   ├── VesselMap.tsx        ← react-leaflet map, markers, track polyline, navigation
+        │   ├── Sidebar.tsx          ← legend filters, vessel count, dark mode toggle, search
+        │   └── VesselSearch.tsx     ← autocomplete search field with fixed-position dropdown
+        ├── hooks/
+        │   └── useVessels.ts        ← fetches /api/vessels, exposes vessels + refresh state
+        ├── utils/
+        │   └── vesselTypes.ts       ← AIS ship type → category name + colour, nav status labels
+        └── data/
+            └── midLookup.ts         ← MMSI MID prefix → flag state lookup table
 ```
 
 The React frontend calls a single backend endpoint (`GET /api/vessels`). The backend handles all BarentsWatch OAuth2 authentication and caches the access token until expiry.
@@ -142,7 +155,7 @@ Open two terminal windows, one for each service.
 uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`. The single endpoint is `GET /api/vessels`.
+The API will be available at `http://localhost:8000`. Endpoints: `GET /api/vessels` (live positions) and `GET /api/vessels/{mmsi}/track` (24-hour track).
 
 **Frontend** (from `frontend/`):
 
