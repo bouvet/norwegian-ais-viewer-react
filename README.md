@@ -52,7 +52,7 @@ use the **×** button to clear the search.
 
 ---
 
-## Experimental Features
+## Experimental Feature
 
 A experimental branch `feature/russian-tanker-detection` is available, 
 which adds an AI-powered maritime intelligence feature using a local 
