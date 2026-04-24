@@ -52,6 +52,18 @@ use the **×** button to clear the search.
 
 ---
 
+## Experimental Features
+
+A experimental branch `feature/russian-tanker-detection` is available, 
+which adds an AI-powered maritime intelligence feature using a local 
+Mistral LLM (via Ollama) to identify suspected Russian-linked tankers 
+based on vessel name analysis, flag state, and MMSI registry. 
+See that branch for details.
+
+![Maritime Intelligence](screenshots/04-Norwegian_AIS_Viewer.jpg)
+
+---
+
 ## Architecture
 
 ```
