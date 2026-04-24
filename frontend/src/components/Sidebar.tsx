@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Vessel } from '../types';
 import { VESSEL_CATEGORIES, getVesselCategory } from '../utils/vesselTypes';
 import VesselSearch from './VesselSearch';
+import RussianTankerDetection from './RussianTankerDetection';
 
 interface SidebarProps {
   vessels: Vessel[];
@@ -14,6 +15,8 @@ interface SidebarProps {
   onRefresh: () => void;
   loading: boolean;
   error: string | null;
+  russianDetection: boolean;
+  onScanComplete: (mmsis: Set<string>) => void;
 }
 
 function formatUtcTime(d: Date): string {
@@ -31,6 +34,8 @@ export default function Sidebar({
   onRefresh,
   loading,
   error,
+  russianDetection,
+  onScanComplete,
 }: SidebarProps) {
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -103,6 +108,12 @@ export default function Sidebar({
           onSelectVessel={onSelectVessel}
         />
       </div>
+
+      <RussianTankerDetection
+        enabled={russianDetection}
+        onSelectVessel={onSelectVessel}
+        onScanComplete={onScanComplete}
+      />
 
       <div className="section freshness">
         {error ? (

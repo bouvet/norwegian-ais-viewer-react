@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { VESSEL_CATEGORIES } from './utils/vesselTypes';
 import { useVessels } from './hooks/useVessels';
 import Sidebar from './components/Sidebar';
@@ -17,7 +17,17 @@ export default function App() {
   const [enabledCategories, setEnabledCategories] = useState<Set<string>>(ALL_CATEGORIES);
   const [darkMode, setDarkMode] = useState(false);
   const [navTarget, setNavTarget] = useState<NavTarget | null>(null);
+  const [russianDetection, setRussianDetection] = useState(false);
+  const [flaggedMmsis, setFlaggedMmsis] = useState<Set<string>>(new Set());
+  const [viewResetSeq, setViewResetSeq] = useState(0);
   const navSeq = useRef(0);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/capabilities')
+      .then(r => r.json())
+      .then(data => setRussianDetection(!!data.russian_detection))
+      .catch(() => {});
+  }, []);
 
   const toggleCategory = useCallback((name: string) => {
     setEnabledCategories(prev => {
@@ -38,6 +48,12 @@ export default function App() {
     setNavTarget({ vessel, seq: navSeq.current });
   }, []);
 
+  const handleScanComplete = useCallback((mmsis: Set<string>) => {
+    setFlaggedMmsis(mmsis);
+    setEnabledCategories(new Set(['Tanker']));
+    setViewResetSeq(s => s + 1);
+  }, []);
+
   return (
     <div className="app">
       <Sidebar
@@ -51,6 +67,8 @@ export default function App() {
         onRefresh={refresh}
         loading={loading}
         error={error}
+        russianDetection={russianDetection}
+        onScanComplete={handleScanComplete}
       />
       <div className="map-wrapper">
         <VesselMap
@@ -58,6 +76,8 @@ export default function App() {
           enabledCategories={enabledCategories}
           darkMode={darkMode}
           navTarget={navTarget}
+          flaggedMmsis={flaggedMmsis}
+          viewResetSeq={viewResetSeq}
         />
       </div>
     </div>

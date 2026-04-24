@@ -12,3 +12,7 @@ export interface Vessel {
   draught: number | null;
   imo: number | null;
 }
+
+export interface SuspectedTanker extends Vessel {
+  signals: string[];
+}

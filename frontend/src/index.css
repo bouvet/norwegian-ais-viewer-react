@@ -477,3 +477,201 @@ html, body, #root {
 .vessel-pulse {
   animation: vessel-pulse 0.5s ease-in-out 4;
 }
+
+/* ─── Russian Tanker Detection ──────────────────────────────── */
+.russian-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.russian-info-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.russian-info-btn:hover {
+  opacity: 1;
+}
+
+.russian-unavailable {
+  font-size: 12px;
+  color: #505470;
+  font-style: italic;
+}
+
+.russian-scan-btn {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.russian-scan-btn:hover {
+  background: #1e40af;
+}
+
+.russian-scan-btn--rescan {
+  margin-top: 10px;
+}
+
+.russian-scanning {
+  font-size: 12px;
+  color: #8890b0;
+  font-style: italic;
+}
+
+.russian-scan-error {
+  font-size: 12px;
+  color: #f87171;
+  margin-top: 6px;
+}
+
+.russian-count {
+  font-size: 12px;
+  color: #7880a0;
+  margin-bottom: 8px;
+}
+
+.russian-results-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a45 transparent;
+}
+
+.russian-results-list::-webkit-scrollbar { width: 4px; }
+.russian-results-list::-webkit-scrollbar-track { background: transparent; }
+.russian-results-list::-webkit-scrollbar-thumb { background: #2a2a45; border-radius: 2px; }
+
+.russian-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: none;
+  border: none;
+  color: #dde1f0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.russian-result-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.russian-result-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.russian-result-flag {
+  font-size: 11px;
+  color: #505470;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* ─── Russian Detection Modal ───────────────────────────────── */
+.russian-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.russian-modal {
+  background: #131323;
+  border: 1px solid #2a2a45;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 380px;
+  width: calc(100% - 40px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+.russian-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f0f4ff;
+  margin-bottom: 14px;
+}
+
+.russian-modal-body {
+  font-size: 13px;
+  color: #a0a8c8;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.russian-modal-body ol {
+  padding-left: 18px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.russian-modal-body li {
+  margin-bottom: 4px;
+}
+
+.russian-modal-body code {
+  background: #1c1c30;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.russian-modal-close {
+  background: #1c1c30;
+  color: #dde1f0;
+  border: none;
+  border-radius: 5px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.russian-modal-close:hover {
+  background: #2a2a45;
+}
+
+/* ─── Suspected Russian tanker popup warning ────────────────── */
+.popup-russian-warning {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+  margin-bottom: 8px;
+}

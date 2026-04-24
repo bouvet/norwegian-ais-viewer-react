@@ -14,9 +14,12 @@ const DARK_ATTR = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &cop
 
 const TRACK_API = (mmsi: string) => `http://localhost:8000/api/vessels/${mmsi}/track`;
 
-// highlighted=true adds a white glow class for the pulse animation
-function createVesselIcon(color: string, course: number, highlighted = false): L.DivIcon {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16" width="10" height="16"><polygon points="5,0 10,16 5,11 0,16" fill="${color}" stroke="${highlighted ? 'white' : 'rgba(0,0,0,0.45)'}" stroke-width="${highlighted ? '1.5' : '0.8'}" stroke-linejoin="round"/></svg>`;
+// highlighted=true: pulse animation (white stroke 1.5)
+// suspectedRussian=true: thick white outline (stroke 3) — only when not highlighted
+function createVesselIcon(color: string, course: number, highlighted = false, suspectedRussian = false): L.DivIcon {
+  const stroke = highlighted ? 'white' : suspectedRussian ? 'white' : 'rgba(0,0,0,0.45)';
+  const strokeWidth = highlighted ? '1.5' : suspectedRussian ? '2' : '0.8';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16" width="10" height="16"><polygon points="5,0 10,16 5,11 0,16" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"/></svg>`;
   return L.divIcon({
     html: `<div class="${highlighted ? 'vessel-pulse' : ''}" style="transform:rotate(${course}deg);transform-origin:5px 8px;width:10px;height:16px;line-height:0">${svg}</div>`,
     className: '',
@@ -98,12 +101,18 @@ function TrackLayer({ track, onClear }: TrackLayerProps) {
 interface NavigationControllerProps {
   navTarget: NavTarget | null;
   markerRefs: React.RefObject<Map<string, L.Marker>>;
+  flaggedMmsis: Set<string>;
+  viewResetSeq: number;
 }
 
-function NavigationController({ navTarget, markerRefs }: NavigationControllerProps) {
+function NavigationController({ navTarget, markerRefs, flaggedMmsis, viewResetSeq }: NavigationControllerProps) {
   const map = useMap();
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep a ref so the revert-icon callback always sees the latest flaggedMmsis
+  // without making it a dependency of the navTarget effect.
+  const flaggedRef = useRef(flaggedMmsis);
+  flaggedRef.current = flaggedMmsis;
 
   useEffect(() => {
     if (!navTarget) return;
@@ -128,7 +137,8 @@ function NavigationController({ navTarget, markerRefs }: NavigationControllerPro
 
       if (highlightTimer.current) clearTimeout(highlightTimer.current);
       highlightTimer.current = setTimeout(() => {
-        marker.setIcon(createVesselIcon(color, course, false));
+        const isSuspected = flaggedRef.current.has(vessel.mmsi);
+        marker.setIcon(createVesselIcon(color, course, false, isSuspected));
         highlightTimer.current = null;
       }, 2000);
     }
@@ -138,6 +148,11 @@ function NavigationController({ navTarget, markerRefs }: NavigationControllerPro
       if (highlightTimer.current) clearTimeout(highlightTimer.current);
     };
   }, [navTarget, map, markerRefs]);
+
+  useEffect(() => {
+    if (viewResetSeq === 0) return;
+    map.setView([65, 14], 5);
+  }, [viewResetSeq, map]);
 
   return null;
 }
@@ -152,9 +167,10 @@ interface VesselPopupProps {
   activeTrackMmsi: string | null;
   onShowTrack: (mmsi: string, color: string, positions: [number, number][]) => void;
   onClearTrack: () => void;
+  isSuspected: boolean;
 }
 
-function VesselPopup({ vessel, color, activeTrackMmsi, onShowTrack, onClearTrack }: VesselPopupProps) {
+function VesselPopup({ vessel, color, activeTrackMmsi, onShowTrack, onClearTrack, isSuspected }: VesselPopupProps) {
   const [trackState, setTrackState] = useState<TrackState>('idle');
 
   const isTrackActive = activeTrackMmsi === vessel.mmsi;
@@ -199,6 +215,9 @@ function VesselPopup({ vessel, color, activeTrackMmsi, onShowTrack, onClearTrack
     // from bubbling to the Leaflet map and triggering closePopupOnClick.
     <div className="vessel-popup" onClick={e => e.stopPropagation()}>
       <div className="popup-name">{vessel.name || 'Unknown vessel'}</div>
+      {isSuspected && (
+        <div className="popup-russian-warning">⚠️ Suspected Russian tanker</div>
+      )}
       <dl className="popup-fields">
         <dt>MMSI</dt><dd>{vessel.mmsi}</dd>
         <dt>Flag</dt><dd>{flag}</dd>
@@ -243,6 +262,7 @@ interface VesselLayerProps {
   onShowTrack: (mmsi: string, color: string, positions: [number, number][]) => void;
   onClearTrack: () => void;
   setMarkerRef: (mmsi: string, marker: L.Marker | null) => void;
+  flaggedMmsis: Set<string>;
 }
 
 function VesselLayer({
@@ -252,6 +272,7 @@ function VesselLayer({
   onShowTrack,
   onClearTrack,
   setMarkerRef,
+  flaggedMmsis,
 }: VesselLayerProps) {
   const visible = useMemo(
     () => vessels.filter(v => enabledCategories.has(getVesselCategory(v.shipType).name)),
@@ -262,7 +283,7 @@ function VesselLayer({
     <>
       {visible.map(vessel => {
         const { color } = getVesselCategory(vessel.shipType);
-        const icon = createVesselIcon(color, vessel.course ?? 0);
+        const icon = createVesselIcon(color, vessel.course ?? 0, false, flaggedMmsis.has(vessel.mmsi));
         return (
           <Marker
             key={vessel.mmsi}
@@ -280,6 +301,7 @@ function VesselLayer({
                 activeTrackMmsi={activeTrackMmsi}
                 onShowTrack={onShowTrack}
                 onClearTrack={onClearTrack}
+                isSuspected={flaggedMmsis.has(vessel.mmsi)}
               />
             </Popup>
           </Marker>
@@ -296,9 +318,11 @@ interface VesselMapProps {
   enabledCategories: Set<string>;
   darkMode: boolean;
   navTarget: NavTarget | null;
+  flaggedMmsis: Set<string>;
+  viewResetSeq: number;
 }
 
-export default function VesselMap({ vessels, enabledCategories, darkMode, navTarget }: VesselMapProps) {
+export default function VesselMap({ vessels, enabledCategories, darkMode, navTarget, flaggedMmsis, viewResetSeq }: VesselMapProps) {
   const [activeTrack, setActiveTrack] = useState<ActiveTrack | null>(null);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
@@ -328,7 +352,7 @@ export default function VesselMap({ vessels, enabledCategories, darkMode, navTar
         attribution={darkMode ? DARK_ATTR : LIGHT_ATTR}
       />
       <TrackLayer track={activeTrack} onClear={handleClearTrack} />
-      <NavigationController navTarget={navTarget} markerRefs={markerRefs} />
+      <NavigationController navTarget={navTarget} markerRefs={markerRefs} flaggedMmsis={flaggedMmsis} viewResetSeq={viewResetSeq} />
       <VesselLayer
         vessels={vessels}
         enabledCategories={enabledCategories}
@@ -336,6 +360,7 @@ export default function VesselMap({ vessels, enabledCategories, darkMode, navTar
         onShowTrack={handleShowTrack}
         onClearTrack={handleClearTrack}
         setMarkerRef={setMarkerRef}
+        flaggedMmsis={flaggedMmsis}
       />
     </MapContainer>
   );
