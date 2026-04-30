@@ -228,6 +228,34 @@ Track display behaviour:
 
 ---
 
+## Part 4b - Adding Vessel track - Fix
+
+  The "Show track" button is not working — the popup closes on click and 
+no track is drawn. When reopening the popup it shows "No track data 
+available" for all vessels.
+
+Please investigate and fix the following:
+
+1. Add error logging in the /api/vessels/{mmsi}/track backend endpoint 
+   to print the full response status code and response body from the 
+   BarentsWatch historic API call. This will tell us if it is an 
+   authentication error, a scope issue, or something else.
+
+2. Check if the historic API endpoint requires a different OAuth scope 
+   than the live API. The live API uses scope=ais — the historic API 
+   may require scope=ais or an additional scope. Check the BarentsWatch 
+   developer documentation at:
+   https://developer.barentswatch.no/docs/AIS/historic-ais-api/
+
+3. The popup closing on button click suggests the click event is 
+   propagating up to the map and closing the popup. Fix this by stopping 
+   event propagation on the "Show track" button click handler.
+
+4. Once the above is fixed, verify the track endpoint returns valid 
+   GeoJSON and that the frontend correctly renders it as a polyline.
+
+---
+
 ## Part 5 — Adding vessel name search
 
 Add a vessel name search with autocomplete to the sidebar, positioned 
